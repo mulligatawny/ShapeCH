@@ -1,11 +1,11 @@
 {
-    "corner_stls": ["../utils/drivAer/configE_23k.stl", "../utils/drivAer/configF_23k.stl", "../utils/drivAer/configN_22k.stl"],
-    "ENABLE_CUDA": 1,
+    "corner_stls": ["../utils/DrivAer/configE_23k.stl", "../utils/DrivAer/configF_23k.stl"],
+    "ENABLE_CUDA": 0,
     "ENABLE_RAY_SAMPLING": 0,
     "THREADS_PER_BLOCK": 128,
-    "resolution": 1025,
-    "project_dir": "projects/drivAer",
-    "samples_per_dim": 23,
+    "resolution": 129,
+    "project_dir": "projects/DrivAer",
+    "samples_per_dim": 2,
     "epsilon": 1.2,
-    "smooth_iter": 25
+    "smooth_iter": 2
 }

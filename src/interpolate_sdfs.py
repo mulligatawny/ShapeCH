@@ -3,6 +3,7 @@ from scipy.ndimage import binary_fill_holes
 from scipy.ndimage import distance_transform_edt as distance
 from skimage import measure
 import trimesh
+import pymeshlab
 import os
 from helpers import load_config
 import time
@@ -46,9 +47,18 @@ def interpolate_sdf_set(sdfs, weight_vector):
 
 num_corners = len(corner_stls)
 sdfs_dir = f"{project_dir}/sdfs"
-npys_dir = f"{project_dir}/npys"
+stls_dir = f"{project_dir}/stls"
 os.makedirs(sdfs_dir, exist_ok=True)
-os.makedirs(npys_dir, exist_ok=True)
+os.makedirs(stls_dir, exist_ok=True)
+
+# load coordinate transform metadata
+transform_metadata = np.load(f'{project_dir}/transform_metadata.npy', allow_pickle=True).item()
+dx = transform_metadata["dx"]
+origin = np.array(transform_metadata["origin"])
+original_centers = np.array(transform_metadata["original_centers"])
+smooth_iter = config["smooth_iter"]
+print(f"Loaded transform metadata: dx={dx:.6f}, origin={origin}")
+print(f"Original centers: {original_centers}")
 
 corner_sdfs = []
 t0 = time.time()
@@ -79,9 +89,32 @@ for sample_idx, weight_vector in enumerate(weights):
 
     # extract interface using marching cubes
     vertices, faces, normals, values = measure.marching_cubes(scalar_field, level=0.5)
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
-
-    np.save(f"{npys_dir}/{sample_idx}.npy", scalar_field)
+    
+    # transform vertices back to original coordinate system
+    vertices_physical = vertices * dx + origin
+    
+    # compute interpolated original center and apply reverse centering
+    interpolated_center = np.dot(weight_vector, original_centers)
+    vertices_physical += interpolated_center
+    
+    mesh = trimesh.Trimesh(vertices=vertices_physical, faces=faces)
+    
+    # export to temporary STL file for smoothing
+    temp_stl_path = os.path.join(stls_dir, f'temp_{sample_idx}.stl')
+    mesh.export(temp_stl_path)
+    
+    # apply laplacian smoothing
+    ms = pymeshlab.MeshSet()
+    ms.load_new_mesh(temp_stl_path)
+    ms.apply_filter('apply_coord_laplacian_smoothing', stepsmoothnum=smooth_iter)
+    
+    # save final STL
+    final_stl_path = os.path.join(stls_dir, f'{sample_idx}.stl')
+    ms.save_current_mesh(final_stl_path)
+    
+    # cleanup temporary file
+    os.remove(temp_stl_path)
+    
     print(sample_idx)
 
 # end

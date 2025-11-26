@@ -139,8 +139,15 @@ y_min, y_max = np.inf, -np.inf
 z_min, z_max = np.inf, -np.inf
 
 # compute domain boundaries based on all corner stls
+original_centers = []
 for stl_file in corner_stls:
     stl_mesh = mesh.Mesh.from_file(stl_file)
+    
+    # store original center before centering
+    minx_orig, maxx_orig, miny_orig, maxy_orig, minz_orig, maxz_orig = compute_bbox(stl_mesh)
+    original_center = [(maxx_orig + minx_orig) / 2, (maxy_orig + miny_orig) / 2, (maxz_orig + minz_orig) / 2]
+    original_centers.append(original_center)
+    
     stl_mesh = center_bbox(stl_mesh)
     minx, maxx, miny, maxy, minz, maxz = compute_bbox(stl_mesh)
 
@@ -183,6 +190,17 @@ else:  # z_range is the largest
     resolution_z = resolution
 
 print("adjusted bounding box:", x_min, x_max, y_min, y_max, z_min, z_max)
+
+# save coordinate transform metadata
+transform_metadata = {
+    "dx": dx,
+    "origin": [x_min, y_min, z_min],
+    "resolution": [resolution_x, resolution_y, resolution_z],
+    "physical_bounds": [x_min, x_max, y_min, y_max, z_min, z_max],
+    "original_centers": original_centers
+}
+np.save(f'{project_dir}/transform_metadata.npy', transform_metadata)
+print(f"Saved transform metadata: dx={dx:.6f}")
 
 # generate grid 
 x = np.linspace(x_min, x_max, resolution_x)
