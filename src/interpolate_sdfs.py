@@ -83,3 +83,5 @@ for sample_idx, weight_vector in enumerate(weights):
 
     np.save(f"{npys_dir}/{sample_idx}.npy", scalar_field)
     print(sample_idx)
+
+# end

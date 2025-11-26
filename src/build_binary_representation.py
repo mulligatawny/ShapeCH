@@ -1,6 +1,5 @@
 import numpy as np
 from stl import mesh
-from numba import cuda
 import trimesh
 import os
 from collections import defaultdict
@@ -11,7 +10,7 @@ import time
 config = load_config()
 
 corner_stls = config["corner_stls"]
-ENABLE_CUDA = config["ENABLE_CUDA"]
+ENABLE_CUDA = bool(config["ENABLE_CUDA"])
 ENABLE_RAY_SAMPLING = config["ENABLE_RAY_SAMPLING"]
 THREADS_PER_BLOCK = config["THREADS_PER_BLOCK"]
 resolution = config["resolution"]
@@ -20,6 +19,13 @@ project_dir = config["project_dir"]
 project_dir = f'{project_dir}_r{resolution}_n{samples_per_dim}'
 print(project_dir)
 
+
+if ENABLE_CUDA:
+    try:
+        from numba import cuda
+    except ImportError:
+        print("CUDA support unavailable; falling back to host execution.")
+        ENABLE_CUDA = False
 
 if ENABLE_CUDA:
     from kernels import ray_intersects_tri, get_cell_ids, trace_rays
@@ -192,7 +198,10 @@ for idx, stl_file in enumerate(corner_stls):
     # ensure triangles are numpy arrays for GPU usage
     tris = np.array(stl_mesh.vectors, dtype=np.float32)
     # keep tris on GPU while ray-tracing in all 3 directions
-    tris_ = cuda.to_device(tris)
+    if ENABLE_CUDA:
+        tris_ = cuda.to_device(tris)
+    else:
+        tris_ = None
 
     # perform ray tracing along each axis
     if ENABLE_CUDA:
@@ -209,13 +218,12 @@ for idx, stl_file in enumerate(corner_stls):
         t0 = time.time()
         print(f'Ray-tracing on host with {resolution_y*resolution_z} rays')
         x_intersects = trace_host(0)
-        print(f'Ray-tracing on host with {resolution_y*resolution_x} rays')
+        print(f'Ray-tracing on host with {resolution_x*resolution_z} rays')
         y_intersects = trace_host(1)
         print(f'Ray-tracing on host with {resolution_x*resolution_y} rays')
-        print(f'Timings :: ray-tracing: {t1-t0} (s)')
-        t1 = time.time()
         z_intersects = trace_host(2)
-
+        t1 = time.time()
+        print(f'Timings :: ray-tracing: {t1-t0} (s)')
     intersects = x_intersects +y_intersects +z_intersects
     print(f'Total no. of intersects:{np.sum(intersects)}')
     print(f'Total no. of grid cells:{resolution_x*resolution_y*resolution_z}')
